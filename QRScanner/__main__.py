@@ -49,7 +49,7 @@ class PythonAppProxy(dynamic_proxy(IPythonApp)):
 
 
 
-class BitcoinZGUI(MainWindow):
+class QRScannerGUI(MainWindow):
     def __init__(self):
         super().__init__()
 
@@ -110,7 +110,7 @@ class BitcoinZGUI(MainWindow):
 
 
 
-class BitcoinZWallet(App):
+class QRScanner(App):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -120,7 +120,7 @@ class BitcoinZWallet(App):
 
     def startup(self):
         MainActivity.setPythonApp(self.proxy)
-        self.main_window = BitcoinZGUI()
+        self.main_window = QRScannerGUI()
         self.main_window.show()
 
 
@@ -138,7 +138,7 @@ class BitcoinZWallet(App):
         
 
 def main():
-    app = BitcoinZWallet(
+    app = QRScanner(
         formal_name = "QRScanner",
         app_id = "com.qrscanner",
         home_page = "https://example.com",
