@@ -1,0 +1,45 @@
+
+[tool.briefcase]
+project_name = "QRScanner Example"
+bundle = "com.qrscanner"
+version = "1.0.0"
+url = "https://example.com"
+license.file = "LICENSE"
+author = "BTCZCommunity"
+author_email = "None"
+
+[tool.briefcase.app.QRScanner]
+formal_name = "QRScanner"
+description = """QRScanner (Android)
+"""
+
+sources = [
+    "QRScanner",
+]
+test_sources = [
+    "tests",
+]
+
+requires = [
+]
+test_requires = [
+    "pytest",
+]
+
+[tool.briefcase.app.QRScanner.android]
+requires = [
+    "toga-android==0.4.7",
+    "travertino==0.3.0"
+]
+
+template = "./gradle-template"
+
+# This activity forces the screen to stay in portrait mode while scanning the QR code.
+android_manifest_application_extra_content = """<activity android:name="org.beeware.android.PortraitCaptureActivity" android:screenOrientation="portrait" android:theme="@style/AppTheme" />"""
+
+build_gradle_dependencies = [
+    "com.google.android.material:material:1.12.0",
+    "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0",
+    "org.osmdroid:osmdroid-android:6.1.20",
+    "com.journeyapps:zxing-android-embedded:4.3.0"  # Implements barcode and QR code scanning functionality
+]
