@@ -2,6 +2,7 @@
 from java import dynamic_proxy
 from java.util import Arrays
 from java.lang import Runnable
+from android.content.res import Configuration
 from androidx.activity.result import ActivityResultCallback
 from com.journeyapps.barcodescanner import ScanOptions, ScanContract
 from org.beeware.android import MainActivity, IPythonApp, PortraitCaptureActivity
@@ -9,7 +10,7 @@ from org.beeware.android import MainActivity, IPythonApp, PortraitCaptureActivit
 from toga import App, MainWindow, Box, Label, Button
 from toga.style.pack import Pack
 from toga.constants import COLUMN, CENTER, BOLD
-from toga.colors import rgb, WHITE, GREEN
+from toga.colors import rgb, WHITE, GREEN, BLACK, YELLOW
 
 
 class RunnableProxy(dynamic_proxy(Runnable)):
@@ -84,10 +85,20 @@ class QRScannerGUI(MainWindow):
             callback=self.on_qr_scanned
         )
 
+        ui_mode = self.get_ui_mode()
+        if ui_mode == "dark":
+            color = WHITE
+            background_color = rgb(40,43,48)
+            button_color = GREEN
+        else:
+            color = BLACK
+            background_color = WHITE
+            button_color = YELLOW
+
         self.main_box = Box(
             style=Pack(
                 direction = COLUMN,
-                background_color=rgb(40,43,48),
+                background_color=background_color,
                 flex = 1,
                 alignment = CENTER
             )
@@ -96,8 +107,8 @@ class QRScannerGUI(MainWindow):
         self.app_version = Label(
             text=f"v {version}",
             style=Pack(
-                color = WHITE,
-                background_color =rgb(40,43,48),
+                color = color,
+                background_color =background_color,
                 flex = 1,
                 text_align = CENTER,
                 font_size=15,
@@ -109,8 +120,8 @@ class QRScannerGUI(MainWindow):
         self.scan_button = Button(
             text="Scan QR",
             style=Pack(
-                color = WHITE,
-                background_color = GREEN,
+                color = color,
+                background_color = button_color,
                 font_size = 14,
                 alignment = CENTER,
                 padding= (10,10,5,10)
@@ -135,6 +146,16 @@ class QRScannerGUI(MainWindow):
             title="QR Code Scanned",
             message=f"Result :\n{contents}"
         )
+
+    def get_ui_mode(self):
+        try:
+            config = MainActivity.singletonThis.getResources().getConfiguration()
+            ui_mode = config.uiMode
+            is_dark = (ui_mode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            return "dark" if is_dark else "light"
+        except Exception as e:
+            print("Theme detection failed:", e)
+            return "unknown"
 
 
 
