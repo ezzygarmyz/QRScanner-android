@@ -1,5 +1,6 @@
 
 import asyncio
+import time
 
 from java import dynamic_proxy, cast
 from java.util import Arrays
@@ -45,12 +46,13 @@ class QRScanner:
         self.activity = MainActivity.singletonThis
         self._launcher = None
         self._future = None
+        self._expected_timeout_time = None
 
         scan_contract = ScanContract()
         callback_proxy = QRCallbackProxy(self)
         self._launcher = self.activity.registerForActivityResult(scan_contract, callback_proxy)
 
-    async def start_scan(self, beep=False, torch=False):
+    async def start_scan(self, beep=False, torch=False, timeout:int=None):
         if self._launcher is None:
             raise RuntimeError("QRScanner callback must be set before scanning")
 
@@ -62,11 +64,20 @@ class QRScanner:
         options.setCaptureActivity(PortraitCaptureActivity)
         options.setDesiredBarcodeFormats(Arrays.asList("QR_CODE"))
         options.setTorchEnabled(torch)
+        if timeout:
+            options.setTimeout(timeout * 1000)
+            self._expected_timeout_time = time.time() + timeout
+        else:
+            self._expected_timeout_time = None
 
         self.activity.runOnUiThread(RunnableProxy(lambda: self._launcher.launch(options)))
         return await self._future
 
     def _set_result(self, contents):
+        if contents is None and self._expected_timeout_time:
+            if abs(time.time() - self._expected_timeout_time) < 2:
+                contents = "__TIMEOUT__"
+
         if self._future and not self._future.done():
             self._future.set_result(contents)
 
@@ -191,16 +202,20 @@ class QRScannerGUI(MainWindow):
 
 
     async def handle_scan(self, beep, torch):
-        result = await self._qr_scanner.start_scan(beep, torch)
-        if result:
+        context = MainActivity.singletonThis.getApplicationContext()
+        result = await self._qr_scanner.start_scan(beep, torch, 15)
 
-            def on_result(widget, result):
+        if result == "__TIMEOUT__":
+            Toast.makeText(context, "The scanner was timeout", Toast.LENGTH_SHORT).show()
+
+        elif result:
+            async def on_result(widget, result):
                 if result is None:
-                    context = MainActivity.singletonThis.getApplicationContext()
                     clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
                     clipboard_manager = cast(ClipboardManager, clipboard)
                     clip = ClipData.newPlainText("QR Code", result)
                     clipboard_manager.setPrimaryClip(clip)
+                    await asyncio.sleep(0.5)
                     Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
 
             self.info_dialog(
@@ -208,6 +223,9 @@ class QRScannerGUI(MainWindow):
                 message=f"Result:\n{result}",
                 on_result=on_result
             )
+        else:
+            Toast.makeText(context, "No result", Toast.LENGTH_SHORT).show()
+
 
     def get_ui_mode(self):
         try:
