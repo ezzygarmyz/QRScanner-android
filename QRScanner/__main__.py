@@ -1,6 +1,10 @@
 
 from java import dynamic_proxy
-from org.beeware.android import MainActivity, IPythonApp
+from java.util import Arrays
+from java.lang import Runnable
+from androidx.activity.result import ActivityResultCallback
+from com.journeyapps.barcodescanner import ScanOptions, ScanContract
+from org.beeware.android import MainActivity, IPythonApp, PortraitCaptureActivity
 
 from toga import App, MainWindow, Box, Label, Button
 from toga.style.pack import Pack
@@ -8,24 +12,32 @@ from toga.constants import COLUMN, CENTER, BOLD
 from toga.colors import rgb, WHITE, GREEN
 
 
+class RunnableProxy(dynamic_proxy(Runnable)):
+    def __init__(self, func):
+        super().__init__()
+        self.func = func
+        
+    def run(self):
+        self.func()
+
+
+class QRCallbackProxy(dynamic_proxy(ActivityResultCallback)):
+    def __init__(self, callback):
+        super().__init__()
+        self._callback = callback
+
+    def onActivityResult(self, result):
+        if result and result.getContents():
+            contents = result.getContents()
+            if callable(self._callback):
+                self._callback(contents)
+
+
 class PythonAppProxy(dynamic_proxy(IPythonApp)):
     def __init__(self):
         super().__init__()
 
         self._back_callback = None
-        self._qr_callback = None
-
-    def set_onbackpressed_callback(self, callback):
-        if callable(callback):
-            self._back_callback = callback
-        else:
-            raise ValueError("Callback must be callable")
-        
-    def set_qr_callback(self, callback):
-        if callable(callback):
-            self._qr_callback = callback
-        else:
-            raise ValueError("QR callback must be callable")
 
     def onBackPressed(self):
         if self._back_callback:
@@ -37,15 +49,29 @@ class PythonAppProxy(dynamic_proxy(IPythonApp)):
                 print("Back callback error:", e)
         return False
     
-    def startQRScan(self):
-        MainActivity.singletonThis.startQRScan()
 
-    def onQRScanned(self, contents):
-        if self._qr_callback:
-            try:
-                self._qr_callback(contents)
-            except Exception as e:
-                print("QR callback error:", e)
+
+class QRScanner:
+    def __init__(self, callback):
+        self.activity = MainActivity.singletonThis
+        self._launcher = None
+
+        scan_contract = ScanContract()
+        callback_proxy = QRCallbackProxy(callback)
+
+        self._launcher = self.activity.registerForActivityResult(scan_contract, callback_proxy)
+
+    def start_scan(self):
+        if self._launcher is None:
+            raise RuntimeError("QRScanner callback must be set before scanning")
+
+        options = ScanOptions()
+        options.setPrompt("Scan a QR Code")
+        options.setBeepEnabled(False)
+        options.setCaptureActivity(PortraitCaptureActivity)
+        options.setDesiredBarcodeFormats(Arrays.asList("QR_CODE"))
+
+        self.activity.runOnUiThread(RunnableProxy(lambda: self._launcher.launch(options)))
 
 
 
@@ -54,7 +80,9 @@ class QRScannerGUI(MainWindow):
         super().__init__()
 
         version = self.app.version
-        self.app.proxy.set_qr_callback(self.on_qr_scanned)
+        self._qr_scanner = QRScanner(
+            callback=self.on_qr_scanned
+        )
 
         self.main_box = Box(
             style=Pack(
@@ -99,11 +127,11 @@ class QRScannerGUI(MainWindow):
 
     
     def scan_qr(self, button):
-        self.app.proxy.startQRScan()
+        self._qr_scanner.start_scan()
 
 
     def on_qr_scanned(self, contents):
-        self.main_window.info_dialog(
+        self.info_dialog(
             title="QR Code Scanned",
             message=f"Result :\n{contents}"
         )
@@ -115,7 +143,7 @@ class QRScanner(App):
         super().__init__(**kwargs)
 
         self.proxy = PythonAppProxy()
-        self.proxy.set_onbackpressed_callback(self.on_back_pressed)
+        self.proxy._back_callback = self.on_back_pressed
 
 
     def startup(self):

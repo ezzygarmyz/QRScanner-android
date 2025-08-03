@@ -25,15 +25,12 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
-import com.qrscanner.QRScanner.R;
-
 
 public class MainActivity extends AppCompatActivity {
 
     // To profile app launch, use `adb -s MainActivity`; look for "onCreate() start" and "onResume() completed".
     private String TAG = "MainActivity";
     private static PyObject pythonApp;
-    private QRScanner qrScanner;
 
     /**
      * This method is called by `app.__main__` over JNI in Python when the BeeWare
@@ -44,10 +41,6 @@ public class MainActivity extends AppCompatActivity {
     @SuppressWarnings("unused")
     public static void setPythonApp(IPythonApp app) {
         pythonApp = PyObject.fromJava(app);
-    }
-
-    public static PyObject getPythonApp() {
-        return pythonApp;
     }
 
     /**
@@ -114,17 +107,10 @@ public class MainActivity extends AppCompatActivity {
             new Kwarg("alter_sys", true)
         );
 
-        qrScanner = new QRScanner(this);
-
         userCode("onCreate");
         Log.d(TAG, "onCreate() complete");
     }
 
-    public void startQRScan() {
-        if (qrScanner != null) {
-            qrScanner.startScan();
-        }
-    }
 
     protected void onStart() {
         Log.d(TAG, "onStart() start");

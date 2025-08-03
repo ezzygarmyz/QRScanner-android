@@ -10,7 +10,6 @@ public interface IPythonApp {
     void onResume();
     void onStart();
     void onBackPressed();
-    void startQRScan();
     void onActivityResult(int requestCode, int resultCode, Intent data);
     void onConfigurationChanged(Configuration newConfig);
     boolean onOptionsItemSelected(MenuItem menuitem);
