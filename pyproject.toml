@@ -2,7 +2,7 @@
 [tool.briefcase]
 project_name = "QRScanner Example"
 bundle = "com.qrscanner"
-version = "1.0.0"
+version = "1.2.0"
 url = "https://example.com"
 license.file = "LICENSE"
 author = "BTCZCommunity"
@@ -29,7 +29,9 @@ test_requires = [
 [tool.briefcase.app.QRScanner.android]
 requires = [
     "toga-android==0.4.7",
-    "travertino==0.3.0"
+    "travertino==0.3.0",
+    "qrcode==8.2",
+    "pillow"
 ]
 
 template = "./gradle-template"
