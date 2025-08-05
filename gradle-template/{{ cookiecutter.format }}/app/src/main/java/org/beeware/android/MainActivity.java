@@ -51,8 +51,15 @@ public class MainActivity extends AppCompatActivity {
 
     protected void onCreate(Bundle savedInstanceState) {
         Log.d(TAG, "onCreate() start");
-        // Change away from the splash screen theme to the app theme.
-        setTheme(R.style.AppTheme);
+
+        Configuration config = getResources().getConfiguration();
+        int uiMode = config.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        if (uiMode == Configuration.UI_MODE_NIGHT_YES) {
+            setTheme(R.style.AppTheme_Dark);
+        } else {
+            setTheme(R.style.AppTheme_Light);
+        }
+
         super.onCreate(savedInstanceState);
         LinearLayout layout = new LinearLayout(this);
         this.setContentView(layout);
@@ -110,7 +117,6 @@ public class MainActivity extends AppCompatActivity {
         userCode("onCreate");
         Log.d(TAG, "onCreate() complete");
     }
-
 
     protected void onStart() {
         Log.d(TAG, "onStart() start");
@@ -180,6 +186,13 @@ public class MainActivity extends AppCompatActivity {
     public void onConfigurationChanged(Configuration newConfig) {
         Log.d(TAG, "onConfigurationChanged() start");
         super.onConfigurationChanged(newConfig);
+        int uiMode = newConfig.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        if (uiMode == Configuration.UI_MODE_NIGHT_YES) {
+            setTheme(R.style.AppTheme_Dark);
+        } else {
+            setTheme(R.style.AppTheme_Light);
+        }
+        recreate();
         userCode("onConfigurationChanged", newConfig);
         Log.d(TAG, "onConfigurationChanged() complete");
     }

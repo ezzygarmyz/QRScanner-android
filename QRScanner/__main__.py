@@ -25,7 +25,7 @@ from org.beeware.android import MainActivity, IPythonApp, PortraitCaptureActivit
 from toga import App, MainWindow, Box, Label, Button, Switch, ImageView
 from toga.style.pack import Pack
 from toga.constants import COLUMN, CENTER, BOLD, ROW
-from toga.colors import rgb, WHITE, BLACK, YELLOW
+from toga.colors import rgb, WHITE
 
 
 class RunnableProxy(dynamic_proxy(Runnable)):
@@ -302,14 +302,15 @@ class QRScannerGUI(MainWindow):
         self._qr_image = None
 
         theme = self.is_dark_theme()
+        text_color = WHITE
         if theme == "dark":
-            color = WHITE
             background_color = rgb(40,43,48)
-            button_color = rgb(0,133,119)
+            button_color = rgb(66,69,73)
+            switch_color = rgb(30,33,36)
         else:
-            color = BLACK
-            background_color = WHITE
-            button_color = YELLOW
+            background_color = rgb(0,133,119)
+            button_color = rgb(0,87,75)
+            switch_color = rgb(0,87,75)
 
         x = self.screen_size()
         qr_width = x - 150
@@ -326,7 +327,7 @@ class QRScannerGUI(MainWindow):
         self.app_version = Label(
             text=f"v {version}",
             style=Pack(
-                color = color,
+                color = text_color,
                 background_color =background_color,
                 flex = 1,
                 text_align = CENTER,
@@ -348,10 +349,10 @@ class QRScannerGUI(MainWindow):
             text="Torch :",
             value=False,
             style=Pack(
-                color = color,
-                background_color = background_color,
+                color = text_color,
+                background_color = switch_color,
                 font_size = 14,
-                padding= (15,20,0,20)
+                padding= (15,20,5,20)
             )
         )
 
@@ -359,11 +360,22 @@ class QRScannerGUI(MainWindow):
             text="Beep :",
             value=False,
             style=Pack(
-                color = color,
-                background_color = background_color,
+                color = text_color,
+                background_color = switch_color,
                 font_size = 14,
-                padding= (10,20,0,20)
+                padding= (10,20,15,20)
             )
+        )
+        
+        self.stwitchs_box = Box(
+            style=Pack(
+                direction = COLUMN,
+                background_color= switch_color
+            )
+        )
+        self.stwitchs_box.add(
+            self.torch_switch,
+            self.beep_switch
         )
 
         self.qr_view = ImageView(
@@ -376,7 +388,6 @@ class QRScannerGUI(MainWindow):
         self.copy_button = Button(
             icon="icons/copy",
             style=Pack(
-                color=color,
                 background_color=button_color,
                 font_size = 12,
                 padding = (0,15,0,0)
@@ -387,7 +398,6 @@ class QRScannerGUI(MainWindow):
         self.save_button = Button(
             icon="icons/save",
             style=Pack(
-                color=color,
                 background_color=button_color,
                 font_size = 12,
                 padding = (0,15,0,0)
@@ -398,7 +408,6 @@ class QRScannerGUI(MainWindow):
         self.share_button = Button(
             icon="icons/share",
             style=Pack(
-                color=color,
                 background_color=button_color,
                 font_size = 12
             ),
@@ -437,7 +446,7 @@ class QRScannerGUI(MainWindow):
         self.scan_button = Button(
             text="Scan QR",
             style=Pack(
-                color = color,
+                color = text_color,
                 background_color = button_color,
                 font_size = 14,
                 alignment = CENTER,
@@ -449,7 +458,7 @@ class QRScannerGUI(MainWindow):
         self.generate_button = Button(
             text="Generate QR",
             style=Pack(
-                color = color,
+                color = text_color,
                 background_color = button_color,
                 font_size = 14,
                 alignment = CENTER,
@@ -464,8 +473,7 @@ class QRScannerGUI(MainWindow):
             self.app_version
         )
         self.widgets_box.add(
-            self.beep_switch,
-            self.torch_switch,
+            self.stwitchs_box,
             self.scan_button,
             self.generate_button
         )

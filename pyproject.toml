@@ -36,6 +36,8 @@ requires = [
 
 template = "./gradle-template"
 
+base_theme = "Theme.AppCompat.DayNight.DarkActionBar"
+
 # This activity forces the screen to stay in portrait mode while scanning the QR code.
 android_manifest_application_extra_content = """<activity android:name="org.beeware.android.PortraitCaptureActivity" android:screenOrientation="portrait" android:theme="@style/AppTheme" />"""
 

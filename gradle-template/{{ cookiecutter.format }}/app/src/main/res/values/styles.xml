@@ -2,16 +2,22 @@
 
     <!-- Base application theme. -->
     <style name="AppTheme.Base" parent="{{ cookiecutter.base_theme }}">
-        <!-- Customize your theme here. -->
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorPrimary">#009688</item>
+        <item name="colorPrimaryDark">#00796B</item>
+        <item name="colorAccent">#FF4081</item>
+        <item name="android:windowBackground">#FFFFFF</item>
     </style>
 
-    <!-- This may be overridden in other "values" directories. -->
-    <style name="AppTheme" parent="AppTheme.Base"/>
+    <style name="AppTheme.Light" parent="AppTheme.Base" />
 
-    <style name="AppTheme.Launcher">
-        <item name="android:windowBackground">@drawable/splash_screen_background</item>
+    <!-- Dark Theme -->
+    <style name="AppTheme.Dark" parent="AppTheme.Base">
+        <item name="colorPrimary">#424549</item>
+        <item name="colorPrimaryDark">#1e2124</item>
+        <item name="android:windowBackground">#000000</item>
     </style>
+
+    <!-- Launcher Theme -->
+    <style name="AppTheme.Launcher" parent="AppTheme.Base"></style>
+
 </resources>
