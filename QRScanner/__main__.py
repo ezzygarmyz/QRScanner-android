@@ -7,9 +7,14 @@ from java import dynamic_proxy, cast, jclass
 from java.util import Arrays
 from java.lang import Runnable
 from java.io import FileInputStream, File
+from android.app import AlertDialog
 from android.net import Uri
-from android.content import Intent, Context, ClipData, ClipboardManager
-from android.widget import Toast
+from android.view import KeyEvent
+from android.content import Intent, Context, ClipData, ClipboardManager, DialogInterface
+from android.widget import Toast, EditText
+from android.text import InputType
+from android.graphics import Color
+from android.graphics.drawable import ColorDrawable
 from android.content.res import Configuration
 from androidx.core.content import FileProvider
 from androidx.documentfile.provider import DocumentFile
@@ -20,7 +25,7 @@ from org.beeware.android import MainActivity, IPythonApp, PortraitCaptureActivit
 from toga import App, MainWindow, Box, Label, Button, Switch, ImageView
 from toga.style.pack import Pack
 from toga.constants import COLUMN, CENTER, BOLD, ROW
-from toga.colors import rgb, WHITE, GREEN, BLACK, YELLOW
+from toga.colors import rgb, WHITE, BLACK, YELLOW
 
 
 class RunnableProxy(dynamic_proxy(Runnable)):
@@ -43,12 +48,11 @@ class QRCallbackProxy(dynamic_proxy(ActivityResultCallback)):
             self.scanner._set_result(contents)
         else:
             self.scanner._set_result(None)
-    
 
 
 class QRScanner:
-    def __init__(self):
-        self.activity = MainActivity.singletonThis
+    def __init__(self, activity):
+        self.activity = activity
         self._launcher = None
         self._future = None
         self._expected_timeout_time = None
@@ -119,12 +123,12 @@ class FolderPickerCallback(dynamic_proxy(ActivityResultCallback)):
 
 
 class FileShare:
-    def __init__(self):
-        self.context = MainActivity.singletonThis.getApplicationContext()
+    def __init__(self, activity):
+        self.context = activity.getApplicationContext()
         self.package_name = self.context.getPackageName()
         self.fileprovider_authority = f"{self.package_name}.fileprovider"
 
-    def share(self, file_path: str, mime_type="image/*", chooser_title:str=None):
+    def share(self, file_path: str, mime_type="image/*", chooser_title="Share Qr Code"):
         if not file_path or not os.path.exists(file_path):
             Toast.makeText(self.context, "File does not exist to share", Toast.LENGTH_SHORT).show()
             return False
@@ -151,8 +155,8 @@ class FileShare:
 
 
 class FolderPicker:
-    def __init__(self):
-        self.activity = MainActivity.singletonThis
+    def __init__(self, activity):
+        self.activity = activity
         self._future = None
 
         callback_proxy = FolderPickerCallback(self)
@@ -176,26 +180,139 @@ class FolderPicker:
 
 
 
+class DialogClickListener(dynamic_proxy(DialogInterface.OnClickListener)):
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def onClick(self, dialog, which):
+        self.callback(dialog, which)
+
+
+class DialogKeyListener(dynamic_proxy(DialogInterface.OnKeyListener)):
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def onKey(self, dialog, keyCode, event):
+        return self.callback(dialog, keyCode, event)
+    
+
+class DialogCancelListener(dynamic_proxy(DialogInterface.OnCancelListener)):
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def onCancel(self, dialog):
+        self.callback(dialog)
+
+
+
+class InputDialog:
+    def __init__(self, activity):
+        self.activity = activity
+        self._future = None
+
+    async def get_input(self, title:str=None, hint:str=None, input_type:str=None):
+        self._future = asyncio.get_event_loop().create_future()
+        self.activity.runOnUiThread(RunnableProxy(lambda: self._show_dialog(title, hint, input_type)))
+        return await self._future
+
+    def _show_dialog(self, title, hint, input_type):
+        edit_text = EditText(self.activity)
+
+        if input_type == "number":
+            edit_text.setInputType(InputType.TYPE_CLASS_NUMBER)
+        elif input_type == "password":
+            edit_text.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        elif input_type == "email":
+            edit_text.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
+        else:
+            edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
+
+        edit_text.setHint(hint)
+
+        config = self.activity.getResources().getConfiguration()
+        is_dark = (config.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+        if is_dark:
+            bg_color = Color.GRAY
+            text_color = Color.WHITE
+            hint_color = Color.LTGRAY
+            button_text_color = Color.WHITE
+        else:
+            bg_color = Color.WHITE
+            text_color = Color.BLACK
+            hint_color = Color.DKGRAY
+            button_text_color = Color.BLACK
+
+        edit_text.setBackgroundColor(bg_color)
+        edit_text.setTextColor(text_color)
+        edit_text.setHintTextColor(hint_color)
+
+        dialog_builder = AlertDialog.Builder(self.activity)
+        dialog_builder.setTitle(title)
+        dialog_builder.setView(edit_text)
+
+        positive_listener = DialogClickListener(lambda dialog, which: self._set_result(edit_text.getText().toString()))
+        negative_listener = DialogClickListener(lambda dialog, which: self._set_result(None))
+
+        dialog_builder.setPositiveButton("Confirm", positive_listener)
+        dialog_builder.setNegativeButton("Cancel", negative_listener)
+        dialog_builder.setCancelable(True)
+
+        dialog = dialog_builder.create()
+
+        dialog.getWindow().setBackgroundDrawable(ColorDrawable(bg_color))
+
+        key_listener = DialogKeyListener(
+            lambda dialog, keyCode, event: self._handle_back(dialog, keyCode, event)
+        )
+        dialog.setOnKeyListener(key_listener)
+        dialog.setOnCancelListener(DialogCancelListener(lambda dialog: self._set_result(None)))
+        dialog.show()
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(button_text_color)
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(button_text_color)
+
+    def _handle_back(self, dialog, keyCode, event):
+        if keyCode == KeyEvent.KEYCODE_BACK:
+            self._set_result(None)
+            dialog.dismiss()
+            return True
+        return False
+
+    def _set_result(self, result):
+        if self._future and not self._future.done():
+            self._future.set_result(result or "")
+
+
+
 class QRScannerGUI(MainWindow):
     def __init__(self):
         super().__init__()
 
+        self.activity = MainActivity.singletonThis
+        self.context = self.activity.getApplicationContext()
         version = self.app.version
-        self._qr_scanner = QRScanner()
-        self.folder_picker = FolderPicker()
-        self.share_file = FileShare()
+        self._qr_scanner = QRScanner(self.activity)
+        self.folder_picker = FolderPicker(self.activity)
+        self.share_file = FileShare(self.activity)
 
         self._qr_image = None
 
-        ui_mode = self.get_ui_mode()
-        if ui_mode == "dark":
+        theme = self.is_dark_theme()
+        if theme == "dark":
             color = WHITE
             background_color = rgb(40,43,48)
-            button_color = GREEN
+            button_color = rgb(0,133,119)
         else:
             color = BLACK
             background_color = WHITE
             button_color = YELLOW
+
+        x = self.screen_size()
+        qr_width = x - 150
 
         self.main_box = Box(
             style=Pack(
@@ -252,33 +369,34 @@ class QRScannerGUI(MainWindow):
         self.qr_view = ImageView(
             style=Pack(
                 background_color=background_color,
-                width=250,
-                height=250
+                width=qr_width
             )
         )
 
         self.copy_button = Button(
-            text="Copy",
+            icon="icons/copy",
             style=Pack(
                 color=color,
                 background_color=button_color,
-                font_size = 12
+                font_size = 12,
+                padding = (0,15,0,0)
             ),
             on_press=self.copy_qr_clipboard
         )
 
         self.save_button = Button(
-            text="Save",
+            icon="icons/save",
             style=Pack(
                 color=color,
                 background_color=button_color,
-                font_size = 12
+                font_size = 12,
+                padding = (0,15,0,0)
             ),
             on_press=self.save_qr
         )
 
         self.share_button = Button(
-            text="Share",
+            icon="icons/share",
             style=Pack(
                 color=color,
                 background_color=button_color,
@@ -323,9 +441,21 @@ class QRScannerGUI(MainWindow):
                 background_color = button_color,
                 font_size = 14,
                 alignment = CENTER,
-                padding= (10,10,5,10)
+                padding= (15,10,5,10)
             ),
             on_press=self.scan_qr
+        )
+
+        self.generate_button = Button(
+            text="Generate QR",
+            style=Pack(
+                color = color,
+                background_color = button_color,
+                font_size = 14,
+                alignment = CENTER,
+                padding= (15,10,5,10)
+            ),
+            on_press=self.text_to_qr
         )
 
         self.content = self.main_box
@@ -336,11 +466,11 @@ class QRScannerGUI(MainWindow):
         self.widgets_box.add(
             self.beep_switch,
             self.torch_switch,
-            self.scan_button
+            self.scan_button,
+            self.generate_button
         )
 
 
-    
     def scan_qr(self, button):
         if self.qr_view.image:
             self.qr_view.image = None
@@ -353,11 +483,10 @@ class QRScannerGUI(MainWindow):
 
     async def handle_scan(self, beep, torch):
         self._result = None
-        context = MainActivity.singletonThis.getApplicationContext()
         result = await self._qr_scanner.start_scan(beep, torch, 15)
 
         if result == "__TIMEOUT__":
-            Toast.makeText(context, "The scanner was timeout", Toast.LENGTH_SHORT).show()
+            Toast.makeText(self.context, "The scanner was timeout", Toast.LENGTH_SHORT).show()
 
         elif result:
             self._result = result
@@ -366,7 +495,24 @@ class QRScannerGUI(MainWindow):
                 self.qr_view.image = self._qr_image
                 self.widgets_box.insert(2, self.qr_box)
         else:
-            Toast.makeText(context, "No result", Toast.LENGTH_SHORT).show()
+            Toast.makeText(self.context, "No result", Toast.LENGTH_SHORT).show()
+
+
+    async def text_to_qr(self, button):
+        if self.qr_view.image:
+            self.qr_view.image = None
+            self.widgets_box.remove(self.qr_box)
+
+        dialog = InputDialog(self.activity)
+        result = await dialog.get_input(title="Generate QR", hint="Enter a text for this QR", input_type="text")
+        if result:
+            self._result = result
+            self._qr_image = self.qr_generate()
+            if self._qr_image:
+                self.qr_view.image = self._qr_image
+                self.widgets_box.insert(2, self.qr_box)
+        else:
+            Toast.makeText(self.context, "Input cancelled", Toast.LENGTH_SHORT).show()
 
 
     def qr_generate(self):
@@ -392,30 +538,28 @@ class QRScannerGUI(MainWindow):
     
 
     def copy_qr_clipboard(self, button):
-        context = MainActivity.singletonThis.getApplicationContext()
-        clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+        clipboard = self.context.getSystemService(Context.CLIPBOARD_SERVICE)
         clipboard_manager = cast(ClipboardManager, clipboard)
         clip = ClipData.newPlainText("QR Code", self._result)
         clipboard_manager.setPrimaryClip(clip)
-        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+        Toast.makeText(self.context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
 
 
     async def save_qr(self, button):
-        context = MainActivity.singletonThis.getApplicationContext()
         folder_uri_str = await self.folder_picker.pick_folder()
 
         if not folder_uri_str:
-            Toast.makeText(context, "No folder selected", Toast.LENGTH_SHORT).show()
+            Toast.makeText(self.context, "No folder selected", Toast.LENGTH_SHORT).show()
             return
         if not self._qr_image or not os.path.exists(self._qr_image):
-            Toast.makeText(context, "No QR image to save", Toast.LENGTH_SHORT).show()
+            Toast.makeText(self.context, "No QR image to save", Toast.LENGTH_SHORT).show()
             return
         try:
             folder_uri = Uri.parse(folder_uri_str)
-            folder_doc = DocumentFile.fromTreeUri(context, folder_uri)
+            folder_doc = DocumentFile.fromTreeUri(self.context, folder_uri)
 
             if folder_doc is None or not folder_doc.canWrite():
-                Toast.makeText(context, "Cannot write to selected folder", Toast.LENGTH_SHORT).show()
+                Toast.makeText(self.context, "Cannot write to selected folder", Toast.LENGTH_SHORT).show()
                 return
 
             filename = os.path.basename(self._qr_image)
@@ -426,9 +570,9 @@ class QRScannerGUI(MainWindow):
             mime_type = "image/png"
             new_file = folder_doc.createFile(mime_type, filename)
             if new_file is None:
-                Toast.makeText(context, "Failed to create file", Toast.LENGTH_SHORT).show()
+                Toast.makeText(self.context, "Failed to create file", Toast.LENGTH_SHORT).show()
                 return
-            resolver = context.getContentResolver()
+            resolver = self.context.getContentResolver()
             output_stream = resolver.openOutputStream(new_file.getUri())
             input_stream = FileInputStream(self._qr_image)
             buffer = bytearray(4096)
@@ -439,34 +583,40 @@ class QRScannerGUI(MainWindow):
 
             input_stream.close()
             output_stream.close()
-            Toast.makeText(context, f"Saved to {filename}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(self.context, f"Saved to {filename}", Toast.LENGTH_SHORT).show()
         except Exception as e:
-            Toast.makeText(context, f"Error saving file: {e}", Toast.LENGTH_LONG).show()
+            Toast.makeText(self.context, f"Error saving file: {e}", Toast.LENGTH_LONG).show()
             print("Error:", e)
 
 
     def share_qr(self, button):
         if not self._qr_image:
-            context = MainActivity.singletonThis.getApplicationContext()
-            Toast.makeText(context, "No QR image to share", Toast.LENGTH_SHORT).show()
+            Toast.makeText(self.context, "No QR image to share", Toast.LENGTH_SHORT).show()
             return
 
         self.share_file.share(self._qr_image, mime_type="image/png", chooser_title="Share QR Code")
 
 
-    def get_ui_mode(self):
+    def is_dark_theme(self):
         try:
-            config = MainActivity.singletonThis.getResources().getConfiguration()
+            config = self.context.getResources().getConfiguration()
             ui_mode = config.uiMode
             is_dark = (ui_mode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
             return "dark" if is_dark else "light"
         except Exception as e:
             print("Theme detection failed:", e)
             return "unknown"
+        
+
+    def screen_size(self):
+        for secreen in self.app.screens:
+            width = secreen.size.width
+
+        return width
 
 
 
-class QRScanner(App):
+class QRScannerExample(App):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -494,12 +644,12 @@ class QRScanner(App):
         
 
 def main():
-    app = QRScanner(
+    app = QRScannerExample(
         formal_name = "QRScanner",
         app_id = "com.qrscanner",
         home_page = "https://example.com",
         author = "BTCZCommunity",
-        version = "1.2.0"
+        version = "1.3.0"
     )
     app.main_loop()
 
